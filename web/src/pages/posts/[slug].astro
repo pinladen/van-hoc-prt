@@ -1,0 +1,98 @@
+---
+import { sanityClient } from '../../lib/sanity';
+import { PortableText } from '@portabletext/astro';
+import '../../styles/global.css';
+
+// 1. Tạo danh sách tất cả các trang cần render tĩnh trước
+export async function getStaticPaths() {
+  const query = `*[_type == "post" && defined(slug.current)]{
+    "slug": slug.current
+  }`;
+  const posts = await sanityClient.fetch(query);
+
+  return posts.map((post: { slug: string }) => ({
+    params: { slug: post.slug },
+  }));
+}
+
+// 2. Lấy slug từ URL và kéo toàn bộ nội dung của bài viết đó về
+const { slug } = Astro.params;
+
+const postQuery = `*[_type == "post" && slug.current == $slug][0]{
+  title,
+  "authorName": author->name,
+  "categories": categories[]->title,
+  _createdAt,
+  body
+}`;
+
+const post = await sanityClient.fetch(postQuery, { slug });
+---
+
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{post.title} — Văn Học PRT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Lora', Georgia, serif; }
+      .brand-title { font-family: 'Cinzel', serif; }
+    </style>
+  </head>
+
+  <body class="bg-[#FAF7F2] text-[#2c2724] min-h-screen selection:bg-[#E9DFCE] antialiased">
+    <div class="h-1 bg-[#8C6D58]/40 w-full"></div>
+
+    <div class="max-w-2xl mx-auto px-6 py-12">
+      <!-- Nút quay lại trang chủ -->
+      <nav class="mb-12">
+        <a href="/" class="text-xs font-sans uppercase tracking-widest text-[#8C6D58] hover:text-[#1a1715] transition-colors inline-flex items-center gap-1">
+          ← Về mục lục
+        </a>
+      </nav>
+
+      <!-- Khung bài viết chính -->
+      <article class="bg-white/80 border border-[#E8E1D3] rounded-2xl p-8 sm:p-12 shadow-sm">
+        
+        <!-- Thể loại -->
+        {post.categories && post.categories.length > 0 && (
+          <div class="flex gap-2 justify-center mb-4">
+            {post.categories.map((cat: string) => (
+              <span class="text-[11px] font-sans uppercase tracking-widest px-2.5 py-0.5 rounded bg-[#F2EDE4] text-[#8C6D58] border border-[#E3DCCE]">
+                {cat}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <!-- Tiêu đề -->
+        <h1 class="text-3xl sm:text-4xl font-bold text-[#1a1715] text-center leading-snug tracking-tight mb-4">
+          {post.title}
+        </h1>
+
+        <!-- Tác giả & Ngày tháng -->
+        <div class="flex items-center justify-center gap-2 pb-8 mb-8 border-b border-[#F0EAE1] text-xs font-sans text-[#8C6D58] uppercase tracking-wider">
+          <span>Bút danh: <strong class="text-[#1a1715] font-semibold">{post.authorName || 'Khuyết danh'}</strong></span>
+          <span>•</span>
+          <time>{new Date(post._createdAt).toLocaleDateString('vi-VN')}</time>
+        </div>
+
+        <!-- Thân bài / Đoạn thơ -->
+        <div class="text-[#3F3935] leading-loose text-lg whitespace-pre-line">
+          {post.body ? (
+            <PortableText value={post.body} />
+          ) : (
+            <p class="italic text-stone-400 text-sm text-center">Chưa có nội dung tác phẩm.</p>
+          )}
+        </div>
+      </article>
+
+      <footer class="mt-16 text-center text-xs text-[#9E9085] font-sans">
+        <p>© 2026 Văn Học PRT</p>
+      </footer>
+    </div>
+  </body>
+</html>
