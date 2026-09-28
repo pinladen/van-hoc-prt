@@ -1,0 +1,19 @@
+---
+const { node } = Astro.props;
+---
+
+<figure class="my-8 text-center">
+  {node?.url && (
+    <img 
+      src={node.url} 
+      alt={node.caption || ''} 
+      class="rounded-xl border border-[#E8E1D3] shadow-sm max-h-[420px] mx-auto object-cover" 
+      loading="lazy"
+    />
+  )}
+  {node?.caption && (
+    <figcaption class="mt-2.5 text-xs text-[#8C6D58] italic font-serif">
+      {node.caption}
+    </figcaption>
+  )}
+</figure>

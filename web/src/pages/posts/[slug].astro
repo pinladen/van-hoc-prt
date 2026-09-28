@@ -1,6 +1,10 @@
 ---
 import { sanityClient } from '../../lib/sanity';
 import { PortableText } from '@portabletext/astro';
+import PortableTextBlock from '../../components/PortableTextBlock.astro';
+import InlineImage from '../../components/InlineImage.astro';
+import BreakLine from '../../components/BreakLine.astro';
+import AlignText from '../../components/AlignText.astro';
 import '../../styles/global.css';
 
 export async function getStaticPaths() {
@@ -8,25 +12,50 @@ export async function getStaticPaths() {
     "slug": slug.current
   }`;
   const posts = await sanityClient.fetch(query);
-
-  return posts.map((post: { slug: string }) => ({
-    params: { slug: post.slug },
-  }));
+  return posts.map((post: { slug: string }) => ({ params: { slug: post.slug } }));
 }
 
 const { slug } = Astro.params;
 
-// Truy vấn thêm trường mainImage của bài viết
 const postQuery = `*[_type == "post" && slug.current == $slug][0]{
   title,
   "authorName": author->name,
   "categories": categories[]->title,
   "mainImage": mainImage.asset->url,
   _createdAt,
-  body
+  body[]{
+    ...,
+    _type == "inlineImage" => {
+      ...,
+      "url": asset->url
+    }
+  }
 }`;
 
 const post = await sanityClient.fetch(postQuery, { slug });
+
+// Ánh xạ các khối PortableText vào các Astro Component chuẩn
+const portableTextComponents = {
+  block: PortableTextBlock,
+  type: {
+    inlineImage: InlineImage,
+    breakLine: BreakLine,
+  },
+  types: {
+    inlineImage: InlineImage,
+    breakLine: BreakLine,
+  },
+  mark: {
+    alignCenter: AlignText,
+    alignRight: AlignText,
+    alignJustify: AlignText,
+  },
+  marks: {
+    alignCenter: AlignText,
+    alignRight: AlignText,
+    alignJustify: AlignText,
+  },
+};
 ---
 
 <html lang="vi">
@@ -47,17 +76,13 @@ const post = await sanityClient.fetch(postQuery, { slug });
     <div class="h-1 bg-[#8C6D58]/40 w-full"></div>
 
     <div class="max-w-2xl mx-auto px-6 py-12">
-      <!-- Nút quay lại trang chủ -->
-      <nav class="mb-12">
+      <nav class="mb-10">
         <a href="/" class="text-xs font-sans uppercase tracking-widest text-[#8C6D58] hover:text-[#1a1715] transition-colors inline-flex items-center gap-1">
           ← Về mục lục
         </a>
       </nav>
 
-      <!-- Khung bài viết chính -->
-      <article class="bg-white/80 border border-[#E8E1D3] rounded-2xl p-6 sm:p-10 shadow-sm">
-        
-        <!-- Thể loại -->
+      <article class="bg-white/85 border border-[#E8E1D3] rounded-2xl p-6 sm:p-12 shadow-sm">
         {post.categories && post.categories.length > 0 && (
           <div class="flex gap-2 justify-center mb-4">
             {post.categories.map((cat: string) => (
@@ -68,21 +93,18 @@ const post = await sanityClient.fetch(postQuery, { slug });
           </div>
         )}
 
-        <!-- Tiêu đề -->
         <h1 class="text-3xl sm:text-4xl font-bold text-[#1a1715] text-center leading-snug tracking-tight mb-4">
           {post.title}
         </h1>
 
-        <!-- Tác giả & Ngày đăng -->
-        <div class="flex items-center justify-center gap-2 pb-6 border-b border-[#F0EAE1] text-xs font-sans text-[#8C6D58] uppercase tracking-wider">
+        <div class="flex items-center justify-center gap-2 pb-8 border-b border-[#F0EAE1] text-xs font-sans text-[#8C6D58] uppercase tracking-wider mb-8">
           <span>Bút danh: <strong class="text-[#1a1715] font-semibold">{post.authorName || 'Khuyết danh'}</strong></span>
           <span>•</span>
           <time>{new Date(post._createdAt).toLocaleDateString('vi-VN')}</time>
         </div>
 
-        <!-- Ảnh bìa bài viết lớn -->
         {post.mainImage && (
-          <div class="my-8 overflow-hidden rounded-xl border border-[#E8E1D3] shadow-inner bg-[#FAF7F2]">
+          <div class="mb-10 overflow-hidden rounded-xl border border-[#E8E1D3] shadow-inner bg-[#FAF7F2]">
             <img 
               src={post.mainImage} 
               alt={post.title} 
@@ -91,10 +113,9 @@ const post = await sanityClient.fetch(postQuery, { slug });
           </div>
         )}
 
-        <!-- Nội dung tác phẩm -->
-        <div class="text-[#3F3935] leading-loose text-lg whitespace-pre-line">
+        <div class="text-[#3F3935] text-lg">
           {post.body ? (
-            <PortableText value={post.body} />
+            <PortableText value={post.body} components={portableTextComponents} />
           ) : (
             <p class="italic text-stone-400 text-sm text-center">Chưa có nội dung tác phẩm.</p>
           )}

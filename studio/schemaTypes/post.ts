@@ -19,6 +19,6 @@ export default {
       of: [{ type: 'reference', to: { type: 'category' } }] 
     },
     { name: 'publishedAt', title: 'Ngày xuất bản', type: 'datetime' },
-    { name: 'body', title: 'Nội dung', type: 'array', of: [{ type: 'block' }] },
+    { name: 'body', title: 'Nội dung', type: 'blockContent' },
   ],
 }

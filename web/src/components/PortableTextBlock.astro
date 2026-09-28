@@ -1,0 +1,24 @@
+---
+const { node } = Astro.props;
+const style = node?.style || 'normal';
+---
+
+{style === 'poem' ? (
+  <div class="my-8 text-center">
+    <div class="inline-block text-left italic text-[#3c3430] leading-relaxed tracking-wide font-serif whitespace-pre-line border-l-2 border-[#8C6D58]/30 pl-6 py-1">
+      <slot />
+    </div>
+  </div>
+) : style === 'epigraph' ? (
+  <blockquote class="my-6 mx-6 sm:mx-12 p-4 bg-[#F2EDE4]/60 border-l-2 border-[#8C6D58] text-[#5c5048] italic text-sm leading-relaxed">
+    <slot />
+  </blockquote>
+) : style === 'h3' ? (
+  <h3 class="text-xl font-semibold text-[#1a1715] mt-8 mb-4 tracking-tight">
+    <slot />
+  </h3>
+) : (
+  <p class="indent-8 text-justify text-[#2c2724] leading-loose mb-6 tracking-normal">
+    <slot />
+  </p>
+)}

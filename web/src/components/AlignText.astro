@@ -1,0 +1,12 @@
+---
+const { markType } = Astro.props;
+---
+
+<span class:list={[
+  'block',
+  { 'text-center': markType === 'alignCenter' },
+  { 'text-right': markType === 'alignRight' },
+  { 'text-justify': markType === 'alignJustify' }
+]}>
+  <slot />
+</span>

@@ -1,0 +1,12 @@
+---
+const { node } = Astro.props;
+const style = node?.style || 'ornament';
+---
+
+{style === 'stars' ? (
+  <div class="my-8 text-center text-stone-400 tracking-[0.6em] text-sm select-none">* * *</div>
+) : style === 'line' ? (
+  <hr class="my-8 border-t border-[#E8E1D3] max-w-xs mx-auto" />
+) : (
+  <div class="my-8 text-center text-[#8C6D58] tracking-widest text-base font-serif select-none">~ ✤ ~</div>
+)}
