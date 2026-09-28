@@ -3,7 +3,6 @@ import { sanityClient } from '../../lib/sanity';
 import { PortableText } from '@portabletext/astro';
 import '../../styles/global.css';
 
-// 1. Tạo danh sách tất cả các trang cần render tĩnh trước
 export async function getStaticPaths() {
   const query = `*[_type == "post" && defined(slug.current)]{
     "slug": slug.current
@@ -15,13 +14,14 @@ export async function getStaticPaths() {
   }));
 }
 
-// 2. Lấy slug từ URL và kéo toàn bộ nội dung của bài viết đó về
 const { slug } = Astro.params;
 
+// Truy vấn thêm trường mainImage của bài viết
 const postQuery = `*[_type == "post" && slug.current == $slug][0]{
   title,
   "authorName": author->name,
   "categories": categories[]->title,
+  "mainImage": mainImage.asset->url,
   _createdAt,
   body
 }`;
@@ -55,7 +55,7 @@ const post = await sanityClient.fetch(postQuery, { slug });
       </nav>
 
       <!-- Khung bài viết chính -->
-      <article class="bg-white/80 border border-[#E8E1D3] rounded-2xl p-8 sm:p-12 shadow-sm">
+      <article class="bg-white/80 border border-[#E8E1D3] rounded-2xl p-6 sm:p-10 shadow-sm">
         
         <!-- Thể loại -->
         {post.categories && post.categories.length > 0 && (
@@ -73,14 +73,25 @@ const post = await sanityClient.fetch(postQuery, { slug });
           {post.title}
         </h1>
 
-        <!-- Tác giả & Ngày tháng -->
-        <div class="flex items-center justify-center gap-2 pb-8 mb-8 border-b border-[#F0EAE1] text-xs font-sans text-[#8C6D58] uppercase tracking-wider">
+        <!-- Tác giả & Ngày đăng -->
+        <div class="flex items-center justify-center gap-2 pb-6 border-b border-[#F0EAE1] text-xs font-sans text-[#8C6D58] uppercase tracking-wider">
           <span>Bút danh: <strong class="text-[#1a1715] font-semibold">{post.authorName || 'Khuyết danh'}</strong></span>
           <span>•</span>
           <time>{new Date(post._createdAt).toLocaleDateString('vi-VN')}</time>
         </div>
 
-        <!-- Thân bài / Đoạn thơ -->
+        <!-- Ảnh bìa bài viết lớn -->
+        {post.mainImage && (
+          <div class="my-8 overflow-hidden rounded-xl border border-[#E8E1D3] shadow-inner bg-[#FAF7F2]">
+            <img 
+              src={post.mainImage} 
+              alt={post.title} 
+              class="w-full h-auto max-h-[460px] object-cover mx-auto"
+            />
+          </div>
+        )}
+
+        <!-- Nội dung tác phẩm -->
         <div class="text-[#3F3935] leading-loose text-lg whitespace-pre-line">
           {post.body ? (
             <PortableText value={post.body} />

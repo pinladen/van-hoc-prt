@@ -2,13 +2,13 @@
 import { sanityClient } from '../lib/sanity';
 import '../styles/global.css';
 
-// Lấy danh sách bài viết kèm slug và thể loại (categories)
 const query = `*[_type == "post" && defined(slug.current)] | order(_createdAt desc){
   _id,
   title,
   "slug": slug.current,
   "authorName": author->name,
   "categories": categories[]->title,
+  "mainImage": mainImage.asset->url,
   _createdAt
 }`;
 
@@ -33,6 +33,7 @@ const posts = await sanityClient.fetch(query);
     <div class="h-1 bg-[#8C6D58]/40 w-full"></div>
 
     <div class="max-w-3xl mx-auto px-6 py-16">
+      <!-- Header -->
       <header class="text-center mb-16 pb-10 border-b border-[#E3DCCE]">
         <span class="text-xs uppercase tracking-[0.25em] text-[#8C6D58] font-sans font-medium">
           Tạp Chí & Tủ Sách Nhỏ
@@ -45,6 +46,7 @@ const posts = await sanityClient.fetch(query);
         </p>
       </header>
 
+      <!-- Danh sách bài viết -->
       <main class="space-y-6">
         {posts.length === 0 ? (
           <div class="text-center py-16 px-4 border border-dashed border-[#DCD3C1] rounded-2xl bg-white/40">
@@ -52,36 +54,57 @@ const posts = await sanityClient.fetch(query);
           </div>
         ) : (
           posts.map((post: any) => (
-            <article class="bg-white/80 border border-[#E8E1D3] rounded-xl p-6 sm:p-8 hover:border-[#8C6D58]/60 hover:shadow-md transition-all duration-300">
-              
-              <!-- Thẻ thể loại / chuyên mục -->
-              {post.categories && post.categories.length > 0 && (
-                <div class="flex gap-2 mb-3">
-                  {post.categories.map((cat: string) => (
-                    <span class="text-[11px] font-sans uppercase tracking-widest px-2.5 py-0.5 rounded bg-[#F2EDE4] text-[#8C6D58] border border-[#E3DCCE]">
-                      {cat}
-                    </span>
-                  ))}
+            <article class="bg-white/85 border border-[#E8E1D3] rounded-2xl p-5 sm:p-6 hover:border-[#8C6D58]/60 hover:shadow-md transition-all duration-300">
+              <div class="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
+                
+                <!-- Khung ảnh Thumbnail dạng đứng bo góc theo bản vẽ -->
+                {post.mainImage && (
+                  <a 
+                    href={`/posts/${post.slug}`} 
+                    class="w-full sm:w-36 h-48 sm:h-36 shrink-0 overflow-hidden rounded-xl border border-[#E8E1D3] bg-[#F2EDE4] block group"
+                  >
+                    <img 
+                      src={post.mainImage} 
+                      alt={post.title} 
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                      loading="lazy"
+                    />
+                  </a>
+                )}
+
+                <!-- Cụm nội dung: Chuyên mục, Tiêu đề, Tác giả & Ngày -->
+                <div class="flex-1 flex flex-col justify-between self-stretch py-1">
+                  <div>
+                    <!-- 1. Categories -->
+                    {post.categories && post.categories.length > 0 && (
+                      <div class="flex flex-wrap gap-2 mb-2.5">
+                        {post.categories.map((cat: string) => (
+                          <span class="text-[11px] font-sans uppercase tracking-widest px-2.5 py-0.5 rounded-md bg-[#F2EDE4] text-[#8C6D58] border border-[#E3DCCE]">
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <!-- 2. Tiêu đề -->
+                    <h2 class="text-xl sm:text-2xl font-semibold text-[#1a1715] leading-snug">
+                      <a 
+                        href={`/posts/${post.slug}`} 
+                        class="hover:text-[#8C6D58] transition-colors"
+                      >
+                        {post.title}
+                      </a>
+                    </h2>
+                  </div>
+
+                  <!-- 3. Bút danh & Ngày đăng -->
+                  <div class="flex items-center gap-2 mt-4 text-xs font-sans text-[#8C6D58] uppercase tracking-wider">
+                    <span>Bút danh: <strong class="text-[#1a1715] font-semibold">{post.authorName || 'Khuyết danh'}</strong></span>
+                    <span>•</span>
+                    <time>{new Date(post._createdAt).toLocaleDateString('vi-VN')}</time>
+                  </div>
                 </div>
-              )}
 
-              <!-- Tiêu đề có gắn link trỏ sang trang chi tiết bài viết -->
-              <h2 class="text-2xl font-semibold text-[#1a1715] leading-snug">
-                <a 
-                  href={`/posts/${post.slug}`} 
-                  class="hover:text-[#8C6D58] transition-colors flex items-center justify-between group"
-                >
-                  <span>{post.title}</span>
-                  <span class="text-stone-300 group-hover:text-[#8C6D58] group-hover:translate-x-1 transition-all text-xl font-sans">
-                    →
-                  </span>
-                </a>
-              </h2>
-
-              <div class="flex items-center gap-2 mt-4 text-xs font-sans text-[#8C6D58] uppercase tracking-wider">
-                <span>Bút danh: <strong class="text-[#1a1715] font-semibold">{post.authorName || 'Khuyết danh'}</strong></span>
-                <span>•</span>
-                <time>{new Date(post._createdAt).toLocaleDateString('vi-VN')}</time>
               </div>
             </article>
           ))
