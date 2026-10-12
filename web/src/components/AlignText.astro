@@ -1,12 +1,24 @@
 ---
-const { markType } = Astro.props;
+const { node } = Astro.props;
+const markType = node?._type || Astro.props.markType;
 ---
 
-<span class:list={[
-  'block',
-  { 'text-center': markType === 'alignCenter' },
-  { 'text-right': markType === 'alignRight' },
-  { 'text-justify': markType === 'alignJustify' }
-]}>
-  <slot />
-</span>
+{
+  markType === 'alignCenter' ? (
+    <span class="block text-center !indent-0 my-2">
+      <slot />
+    </span>
+  ) : markType === 'alignRight' ? (
+    <span class="block text-right !indent-0 my-2">
+      <slot />
+    </span>
+  ) : markType === 'alignJustify' ? (
+    <span class="block text-justify my-2">
+      <slot />
+    </span>
+  ) : (
+    <span class="block text-left !indent-0 my-2">
+      <slot />
+    </span>
+  )
+}

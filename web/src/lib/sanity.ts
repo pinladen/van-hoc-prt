@@ -2,10 +2,10 @@ import { createClient } from '@sanity/client';
 import { createImageUrlBuilder } from '@sanity/image-url'; // Sử dụng named export
 
 export const sanityClient = createClient({
-  projectId: 'oeqzzve8',
-  dataset: 'production',
-  useCdn: true,
-  apiVersion: '2024-03-01',
+  projectId: import.meta.env.PUBLIC_SANITY_PROJECT_ID,
+  dataset: import.meta.env.PUBLIC_SANITY_DATASET,
+  apiVersion: import.meta.env.PUBLIC_SANITY_API_VERSION,
+  useCdn: true, 
 });
 
 // Dùng createImageUrlBuilder thay cho imageUrlBuilder cũ

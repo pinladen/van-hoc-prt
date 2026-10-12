@@ -39,7 +39,8 @@ export default defineType({
       type: 'block',
       styles: [
         { title: 'Văn xuôi', value: 'normal' },
-        { title: 'Khổ thơ (Khung viền thơ)', value: 'poem' },
+        { title: 'Khổ thơ', value: 'poem' },
+        { title: 'Trích dẫn', value: 'blockquote' },
         { title: 'Lời đề từ (In nghiêng)', value: 'epigraph' },
         { title: 'Tiêu đề mục (H3)', value: 'h3' },
       ],
@@ -100,6 +101,7 @@ export default defineType({
         },
       ],
     }),
+    
 
     // Khối hoa văn ngắt khổ
     defineArrayMember({
@@ -121,6 +123,32 @@ export default defineType({
           },
         },
       ],
+    }),
+
+    // Thêm khối Ngắt trang (Page Break) trực quan vào đây
+    defineArrayMember({
+      type: 'object',
+      name: 'pageBreak',
+      title: 'Ngắt trang',
+      // Định nghĩa icon hiển thị (một vạch đứt quãng)
+      icon: () => '⎼⎼⎼⎼⎼⎼⎼⎼⎼⎼', 
+      fields: [
+        {
+          name: 'title',
+          title: 'Nhãn hiển thị',
+          type: 'string',
+          initialValue: '--- Ngắt trang tại đây ---',
+          readOnly: true, // Không cho sửa chữ để đảm bảo tính nhất quán
+        }
+      ],
+      // Tạo giao diện hiển thị vạch đứt trực quan ngay trong khung soạn thảo
+      preview: {
+        prepare() {
+          return {
+            title: '---------------- PAGE BREAK / NGẮT TRANG ----------------',
+          }
+        }
+      }
     }),
   ],
 })

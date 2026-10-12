@@ -56,13 +56,48 @@ const portableTextComponents = {
     alignJustify: AlignText,
   },
 };
+
+// CẤU HÌNH: Số khối nội dung tối đa cho 1 trang khi tác giả không ngắt trang
+// (Khoảng 12 - 15 đoạn văn là độ dài chuẩn cho một màn hình đọc mobile)
+const AUTO_PAGE_SIZE = 12;
+
+const rawBody = post?.body || [];
+let cleanPages: any[][] = [];
+
+// Kiểm tra xem tác giả có chủ động đặt mốc ngắt trang nào không
+const hasManualBreak = rawBody.some((block: any) => block._type === 'pageBreak');
+
+if (hasManualBreak) {
+  // 1. Ưu tiên ngắt trang thủ công theo ý tác giả
+  const manualPages: any[][] = [[]];
+  rawBody.forEach((block: any) => {
+    if (block._type === 'pageBreak') {
+      manualPages.push([]);
+    } else {
+      manualPages[manualPages.length - 1].push(block);
+    }
+  });
+  cleanPages = manualPages.filter((p) => p.length > 0);
+} else {
+  // 2. Tự động ngắt trang nếu bài viết dài vượt quá ngưỡng quy định
+  if (rawBody.length > AUTO_PAGE_SIZE) {
+    for (let i = 0; i < rawBody.length; i += AUTO_PAGE_SIZE) {
+      cleanPages.push(rawBody.slice(i, i + AUTO_PAGE_SIZE));
+    }
+  } else {
+    // Bài ngắn vừa đủ: Giữ nguyên 1 trang duy nhất
+    cleanPages = [rawBody];
+  }
+}
+
+const totalPages = cleanPages.length;
 ---
 
 <html lang="vi">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{post.title} — Văn Học PRT</title>
+    <title>{post?.title} — Văn Học PRT</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
@@ -75,7 +110,7 @@ const portableTextComponents = {
   <body class="bg-[#FAF7F2] text-[#2c2724] min-h-screen selection:bg-[#E9DFCE] antialiased">
     <div class="h-1 bg-[#8C6D58]/40 w-full"></div>
 
-    <div class="max-w-2xl mx-auto px-6 py-12">
+    <div class="max-w-2xl mx-auto px-6 py-12" id="post-container">
       <nav class="mb-10">
         <a href="/" class="text-xs font-sans uppercase tracking-widest text-[#8C6D58] hover:text-[#1a1715] transition-colors inline-flex items-center gap-1">
           ← Về mục lục
@@ -83,8 +118,8 @@ const portableTextComponents = {
       </nav>
 
       <article class="bg-white/85 border border-[#E8E1D3] rounded-2xl p-6 sm:p-12 shadow-sm">
-        {post.categories && post.categories.length > 0 && (
-          <div class="flex gap-2 justify-center mb-4">
+        {post?.categories && post.categories.length > 0 && (
+          <div class="flex gap-2 justify-center mb-4 flex-wrap">
             {post.categories.map((cat: string) => (
               <span class="text-[11px] font-sans uppercase tracking-widest px-2.5 py-0.5 rounded bg-[#F2EDE4] text-[#8C6D58] border border-[#E3DCCE]">
                 {cat}
@@ -94,37 +129,115 @@ const portableTextComponents = {
         )}
 
         <h1 class="text-3xl sm:text-4xl font-bold text-[#1a1715] text-center leading-snug tracking-tight mb-4">
-          {post.title}
+          {post?.title}
         </h1>
 
         <div class="flex items-center justify-center gap-2 pb-8 border-b border-[#F0EAE1] text-xs font-sans text-[#8C6D58] uppercase tracking-wider mb-8">
-          <span>Bút danh: <strong class="text-[#1a1715] font-semibold">{post.authorName || 'Khuyết danh'}</strong></span>
+          <span>Bút danh: <strong class="text-[#1a1715] font-semibold">{post?.authorName || 'Khuyết danh'}</strong></span>
           <span>•</span>
-          <time>{new Date(post._createdAt).toLocaleDateString('vi-VN')}</time>
+          <time>{post?._createdAt ? new Date(post._createdAt).toLocaleDateString('vi-VN') : ''}</time>
         </div>
 
-        {post.mainImage && (
+        {post?.mainImage && (
           <div class="mb-10 overflow-hidden rounded-xl border border-[#E8E1D3] shadow-inner bg-[#FAF7F2]">
             <img 
               src={post.mainImage} 
-              alt={post.title} 
+              alt={post?.title} 
               class="w-full h-auto max-h-[460px] object-cover mx-auto"
             />
           </div>
         )}
 
+        <!-- Vùng hiển thị nội dung phân trang -->
         <div class="text-[#3F3935] text-lg">
-          {post.body ? (
-            <PortableText value={post.body} components={portableTextComponents} />
+          {cleanPages.length > 0 ? (
+            cleanPages.map((pageBlocks, index) => (
+              <div 
+                class={`post-page ${index !== 0 ? 'hidden' : ''}`} 
+                data-page={index + 1}
+              >
+                <PortableText value={pageBlocks} components={portableTextComponents} />
+              </div>
+            ))
           ) : (
             <p class="italic text-stone-400 text-sm text-center">Chưa có nội dung tác phẩm.</p>
           )}
         </div>
+
+        <!-- Bộ nút điều hướng phân trang -->
+        {totalPages > 1 && (
+          <nav class="mt-12 pt-8 border-t border-[#F0EAE1] flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+            <button 
+              id="prev-btn" 
+              class="px-4 py-2 border border-[#8C6D58] text-[#8C6D58] rounded text-xs font-sans uppercase tracking-wider hover:bg-[#F2EDE4] disabled:opacity-30 disabled:cursor-not-allowed transition"
+              disabled
+            >
+              ← Trang trước
+            </button>
+
+            <span class="text-xs font-sans uppercase tracking-widest text-[#8C6D58]" id="page-indicator">
+              Trang 1 / {totalPages}
+            </span>
+
+            <button 
+              id="next-btn" 
+              class="px-5 py-2.5 bg-[#8C6D58] text-[#FAF7F2] rounded text-xs font-sans uppercase tracking-wider hover:bg-[#735845] transition shadow-sm font-medium"
+            >
+              Đọc tiếp →
+            </button>
+          </nav>
+        )}
       </article>
 
       <footer class="mt-16 text-center text-xs text-[#9E9085] font-sans">
         <p>© 2026 Văn Học PRT</p>
       </footer>
     </div>
+
+    <!-- Script điều khiển lật trang client-side mượt mà -->
+    <script define:vars={{ totalPages }}>
+      let currentPage = 1;
+      const pages = document.querySelectorAll('.post-page');
+      const prevBtn = document.getElementById('prev-btn');
+      const nextBtn = document.getElementById('next-btn');
+      const indicator = document.getElementById('page-indicator');
+      const postContainer = document.getElementById('post-container');
+
+      function switchPage(pageNumber) {
+        if (pageNumber < 1 || pageNumber > totalPages) return;
+        
+        currentPage = pageNumber;
+
+        // Ẩn tất cả và chỉ mở trang được chọn
+        pages.forEach((page) => {
+          const pageIndex = Number(page.getAttribute('data-page'));
+          if (pageIndex === currentPage) {
+            page.classList.remove('hidden');
+          } else {
+            page.classList.add('hidden');
+          }
+        });
+
+        // Cập nhật thông số hiển thị
+        if (indicator) indicator.textContent = `Trang ${currentPage} / ${totalPages}`;
+        if (prevBtn) prevBtn.disabled = currentPage === 1;
+
+        // Cập nhật nhãn nút: Trang đầu là "Đọc tiếp →", các trang sau là "Trang sau →"
+        if (nextBtn) {
+          if (currentPage === totalPages) {
+            nextBtn.classList.add('hidden');
+          } else {
+            nextBtn.classList.remove('hidden');
+            nextBtn.textContent = currentPage === 1 ? 'Đọc tiếp →' : 'Trang sau →';
+          }
+        }
+
+        // Tự động cuộn êm lên đầu khung bài viết
+        postContainer?.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      prevBtn?.addEventListener('click', () => switchPage(currentPage - 1));
+      nextBtn?.addEventListener('click', () => switchPage(currentPage + 1));
+    </script>
   </body>
 </html>
