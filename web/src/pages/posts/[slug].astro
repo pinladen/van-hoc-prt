@@ -20,7 +20,10 @@ const { slug } = Astro.params;
 const postQuery = `*[_type == "post" && slug.current == $slug][0]{
   title,
   "authorName": author->name,
-  "categories": categories[]->title,
+  "categories": categories[]->{
+    title,
+    "slug": slug.current
+  },
   "mainImage": mainImage.asset->url,
   _createdAt,
   body[]{
@@ -33,6 +36,10 @@ const postQuery = `*[_type == "post" && slug.current == $slug][0]{
 }`;
 
 const post = await sanityClient.fetch(postQuery, { slug });
+
+if (!post) {
+  return Astro.redirect('/404');
+}
 
 // Ánh xạ các khối PortableText vào các Astro Component chuẩn
 const portableTextComponents = {
@@ -58,10 +65,29 @@ const portableTextComponents = {
 };
 
 // CẤU HÌNH: Số khối nội dung tối đa cho 1 trang khi tác giả không ngắt trang
-// (Khoảng 12 - 15 đoạn văn là độ dài chuẩn cho một màn hình đọc mobile)
 const AUTO_PAGE_SIZE = 12;
 
-const rawBody = post?.body || [];
+// Hàm tự động quét và triệt tiêu toàn bộ ký tự rác OCR tiếng Việt
+function cleanOcrArtifacts(blocks: any[]) {
+  if (!blocks || !Array.isArray(blocks)) return [];
+  return blocks.map((block) => {
+    if (block._type !== 'block' || !block.children) return block;
+    return {
+      ...block,
+      children: block.children.map((child: any) => {
+        if (typeof child.text !== 'string') return child;
+        return {
+          ...child,
+          // Bắt và khử sạch các cặp ký tự bị chèn dấu ´ hoặc ` kèm khoảng trắng rác ở giữa
+          text: child.text.replace(/([a-zA-Z\u00C0-\u1EF9])[´`]\s*([a-zA-Z\u00C0-\u1EF9])/g, '$1$2'),
+        };
+      }),
+    };
+  });
+}
+
+// Làm sạch toàn bộ nội dung bài viết trước khi đưa vào phân trang
+const rawBody = cleanOcrArtifacts(post?.body || []);
 let cleanPages: any[][] = [];
 
 // Kiểm tra xem tác giả có chủ động đặt mốc ngắt trang nào không
@@ -72,7 +98,9 @@ if (hasManualBreak) {
   const manualPages: any[][] = [[]];
   rawBody.forEach((block: any) => {
     if (block._type === 'pageBreak') {
-      manualPages.push([]);
+      if (manualPages[manualPages.length - 1].length > 0) {
+        manualPages.push([]);
+      }
     } else {
       manualPages[manualPages.length - 1].push(block);
     }
@@ -111,6 +139,7 @@ const totalPages = cleanPages.length;
     <div class="h-1 bg-[#8C6D58]/40 w-full"></div>
 
     <div class="max-w-2xl mx-auto px-6 py-12" id="post-container">
+      <!-- Điều hướng quay lại -->
       <nav class="mb-10">
         <a href="/" class="text-xs font-sans uppercase tracking-widest text-[#8C6D58] hover:text-[#1a1715] transition-colors inline-flex items-center gap-1">
           ← Về mục lục
@@ -118,12 +147,16 @@ const totalPages = cleanPages.length;
       </nav>
 
       <article class="bg-white/85 border border-[#E8E1D3] rounded-2xl p-6 sm:p-12 shadow-sm">
+        <!-- Chuyên mục (Hiển thị dạng thẻ bấm chuyển trang được) -->
         {post?.categories && post.categories.length > 0 && (
           <div class="flex gap-2 justify-center mb-4 flex-wrap">
-            {post.categories.map((cat: string) => (
-              <span class="text-[11px] font-sans uppercase tracking-widest px-2.5 py-0.5 rounded bg-[#F2EDE4] text-[#8C6D58] border border-[#E3DCCE]">
-                {cat}
-              </span>
+            {post.categories.map((cat: any) => (
+              <a 
+                href={`/categories/${cat.slug}`}
+                class="text-[11px] font-sans uppercase tracking-widest px-2.5 py-0.5 rounded bg-[#F2EDE4] text-[#8C6D58] border border-[#E3DCCE] hover:bg-[#8C6D58] hover:text-[#FAF7F2] hover:border-[#8C6D58] transition"
+              >
+                {cat.title}
+              </a>
             ))}
           </div>
         )}
@@ -148,8 +181,11 @@ const totalPages = cleanPages.length;
           </div>
         )}
 
+        <!-- Điểm neo cuộn trang khi độc giả lật trang -->
+        <div id="reader-top" class="scroll-mt-6"></div>
+
         <!-- Vùng hiển thị nội dung phân trang -->
-        <div class="text-[#3F3935] text-lg">
+        <div class="text-[#3F3935] text-lg min-h-[300px]">
           {cleanPages.length > 0 ? (
             cleanPages.map((pageBlocks, index) => (
               <div 
@@ -164,80 +200,157 @@ const totalPages = cleanPages.length;
           )}
         </div>
 
-        <!-- Bộ nút điều hướng phân trang -->
+        <!-- Bộ nút điều hướng phân trang (Dãy số trang + Nút trước/sau) -->
         {totalPages > 1 && (
-          <nav class="mt-12 pt-8 border-t border-[#F0EAE1] flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
-            <button 
-              id="prev-btn" 
-              class="px-4 py-2 border border-[#8C6D58] text-[#8C6D58] rounded text-xs font-sans uppercase tracking-wider hover:bg-[#F2EDE4] disabled:opacity-30 disabled:cursor-not-allowed transition"
-              disabled
-            >
-              ← Trang trước
-            </button>
-
-            <span class="text-xs font-sans uppercase tracking-widest text-[#8C6D58]" id="page-indicator">
+          <nav class="mt-14 pt-8 border-t border-[#F0EAE1] flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+            <!-- Chỉ báo số trang -->
+            <span class="text-xs font-sans uppercase tracking-widest text-[#8C6D58] order-2 sm:order-1" id="page-indicator">
               Trang 1 / {totalPages}
             </span>
 
-            <button 
-              id="next-btn" 
-              class="px-5 py-2.5 bg-[#8C6D58] text-[#FAF7F2] rounded text-xs font-sans uppercase tracking-wider hover:bg-[#735845] transition shadow-sm font-medium"
-            >
-              Đọc tiếp →
-            </button>
+            <!-- Cụm nút số trang và nút lật trang -->
+            <div class="flex items-center gap-1.5 order-1 sm:order-2 flex-wrap justify-center">
+              <!-- Nút lùi -->
+              <button 
+                id="prev-btn" 
+                class="px-3 py-1.5 border border-[#E8E1D3] text-[#594F47] bg-white/70 rounded-lg text-xs font-sans uppercase tracking-wider hover:bg-[#F2EDE4] disabled:opacity-30 disabled:cursor-not-allowed transition"
+                title="Trang trước"
+              >
+                ← Trước
+              </button>
+
+              <!-- Danh sách các nút số trang: 1, 2, 3, 4... -->
+              <div class="flex items-center gap-1" id="page-numbers-container">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
+                  <button
+                    class={`page-num-btn w-8 h-8 rounded-lg text-xs font-sans border transition ${
+                      num === 1 
+                        ? 'bg-[#8C6D58] text-[#FAF7F2] border-[#8C6D58] font-bold shadow-sm' 
+                        : 'bg-white/70 text-[#594F47] border-[#E8E1D3] hover:border-[#8C6D58] hover:bg-[#F2EDE4]'
+                    }`}
+                    data-target-page={num}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+
+              <!-- Nút tiến -->
+              <button 
+                id="next-btn" 
+                class="px-3.5 py-1.5 bg-[#8C6D58] text-[#FAF7F2] rounded-lg text-xs font-sans uppercase tracking-wider hover:bg-[#735845] transition shadow-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Trang tiếp theo"
+              >
+                Sau →
+              </button>
+            </div>
           </nav>
         )}
       </article>
 
       <footer class="mt-16 text-center text-xs text-[#9E9085] font-sans">
-        <p>© 2026 Văn Học PRT</p>
+        <p>© 2026 Văn Học PRT • Lưu giữ những trang viết</p>
       </footer>
     </div>
 
-    <!-- Script điều khiển lật trang client-side mượt mà -->
+    <!-- Script điều khiển lật trang client-side & đồng bộ URL ?page=X -->
     <script define:vars={{ totalPages }}>
-      let currentPage = 1;
-      const pages = document.querySelectorAll('.post-page');
-      const prevBtn = document.getElementById('prev-btn');
-      const nextBtn = document.getElementById('next-btn');
-      const indicator = document.getElementById('page-indicator');
-      const postContainer = document.getElementById('post-container');
+      document.addEventListener('DOMContentLoaded', () => {
+        if (totalPages <= 1) return;
 
-      function switchPage(pageNumber) {
-        if (pageNumber < 1 || pageNumber > totalPages) return;
-        
-        currentPage = pageNumber;
+        let currentPage = 1;
+        const pages = document.querySelectorAll('.post-page');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const indicator = document.getElementById('page-indicator');
+        const pageNumButtons = document.querySelectorAll('.page-num-btn');
+        const readerTop = document.getElementById('reader-top');
 
-        // Ẩn tất cả và chỉ mở trang được chọn
-        pages.forEach((page) => {
-          const pageIndex = Number(page.getAttribute('data-page'));
-          if (pageIndex === currentPage) {
-            page.classList.remove('hidden');
-          } else {
-            page.classList.add('hidden');
+        // 1. Hàm lấy số trang từ thanh URL (?page=X)
+        function getPageFromUrl() {
+          const params = new URLSearchParams(window.location.search);
+          const pageParam = parseInt(params.get('page'), 10);
+          if (isNaN(pageParam) || pageParam < 1) return 1;
+          if (pageParam > totalPages) return totalPages;
+          return pageParam;
+        }
+
+        // 2. Hàm chuyển trang
+        function switchPage(pageNumber, updateUrl = true, shouldScroll = false) {
+          if (pageNumber < 1 || pageNumber > totalPages) return;
+          currentPage = pageNumber;
+
+          // Ẩn/Hiện nội dung khối trang tương ứng
+          pages.forEach((page) => {
+            const pageIndex = Number(page.getAttribute('data-page'));
+            if (pageIndex === currentPage) {
+              page.classList.remove('hidden');
+            } else {
+              page.classList.add('hidden');
+            }
+          });
+
+          // Cập nhật trạng thái Active của các nút số trang (1, 2, 3...)
+          pageNumButtons.forEach((btn) => {
+            const target = Number(btn.getAttribute('data-target-page'));
+            if (target === currentPage) {
+              btn.className = 'page-num-btn w-8 h-8 rounded-lg text-xs font-sans border transition bg-[#8C6D58] text-[#FAF7F2] border-[#8C6D58] font-bold shadow-sm';
+            } else {
+              btn.className = 'page-num-btn w-8 h-8 rounded-lg text-xs font-sans border transition bg-white/70 text-[#594F47] border-[#E8E1D3] hover:border-[#8C6D58] hover:bg-[#F2EDE4]';
+            }
+          });
+
+          // Cập nhật text trạng thái "Trang X / Y"
+          if (indicator) {
+            indicator.textContent = `Trang ${currentPage} / ${totalPages}`;
           }
-        });
 
-        // Cập nhật thông số hiển thị
-        if (indicator) indicator.textContent = `Trang ${currentPage} / ${totalPages}`;
-        if (prevBtn) prevBtn.disabled = currentPage === 1;
+          // Cập nhật disable nút Trước / Sau
+          if (prevBtn) prevBtn.disabled = (currentPage === 1);
+          if (nextBtn) prevBtn.disabled = false;
+          if (nextBtn) nextBtn.disabled = (currentPage === totalPages);
 
-        // Cập nhật nhãn nút: Trang đầu là "Đọc tiếp →", các trang sau là "Trang sau →"
-        if (nextBtn) {
-          if (currentPage === totalPages) {
-            nextBtn.classList.add('hidden');
-          } else {
-            nextBtn.classList.remove('hidden');
-            nextBtn.textContent = currentPage === 1 ? 'Đọc tiếp →' : 'Trang sau →';
+          // Cập nhật URL (?page=X) vào lịch sử trình duyệt không tải lại trang
+          if (updateUrl) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', currentPage);
+            window.history.pushState({ page: currentPage }, '', url.toString());
+          }
+
+          // Tự động cuộn êm lên đầu nội dung đọc nếu người dùng bấm chuyển trang
+          if (shouldScroll && readerTop) {
+            readerTop.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
         }
 
-        // Tự động cuộn êm lên đầu khung bài viết
-        postContainer?.scrollIntoView({ behavior: 'smooth' });
-      }
+        // 3. Gắn sự kiện click cho các nút số trang
+        pageNumButtons.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const target = Number(btn.getAttribute('data-target-page'));
+            switchPage(target, true, true);
+          });
+        });
 
-      prevBtn?.addEventListener('click', () => switchPage(currentPage - 1));
-      nextBtn?.addEventListener('click', () => switchPage(currentPage + 1));
+        // 4. Gắn sự kiện nút Trước và Sau
+        prevBtn?.addEventListener('click', () => {
+          if (currentPage > 1) switchPage(currentPage - 1, true, true);
+        });
+
+        nextBtn?.addEventListener('click', () => {
+          if (currentPage < totalPages) switchPage(currentPage + 1, true, true);
+        });
+
+        // 5. Bắt sự kiện khi người dùng bấm nút Back / Forward trên trình duyệt
+        window.addEventListener('popstate', () => {
+          switchPage(getPageFromUrl(), false, false);
+        });
+
+        // 6. Khởi động lần đầu: Kiểm tra URL xem độc giả có đang mở thẳng ?page=X không
+        const initialPage = getPageFromUrl();
+        switchPage(initialPage, false, false);
+      });
     </script>
+
+    
   </body>
 </html>

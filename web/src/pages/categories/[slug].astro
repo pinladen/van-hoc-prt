@@ -1,0 +1,182 @@
+---
+import { sanityClient } from '../../lib/sanity';
+import '../../styles/global.css';
+
+// 1. Tạo danh sách các đường dẫn tĩnh cho toàn bộ danh mục có slug
+export async function getStaticPaths() {
+  const query = `*[_type == "category" && defined(slug.current)]{
+    "slug": slug.current
+  }`;
+  const categories = await sanityClient.fetch(query);
+  return categories.map((cat: { slug: string }) => ({
+    params: { slug: cat.slug },
+  }));
+}
+
+const { slug } = Astro.params;
+
+// 2. Lấy thông tin danh mục và toàn bộ bài viết (kèm ảnh mainImage, danh mục và tác giả)
+const categoryQuery = `*[_type == "category" && slug.current == $slug][0]{
+  _id,
+  title,
+  description,
+  "posts": *[_type == "post" && references(^._id)] | order(_createdAt desc){
+    _id,
+    title,
+    "slug": slug.current,
+    "authorName": author->name,
+    "categories": categories[]->{
+      title,
+      "slug": slug.current
+    },
+    "mainImage": mainImage.asset->url,
+    _createdAt
+  }
+}`;
+
+const category = await sanityClient.fetch(categoryQuery, { slug });
+
+if (!category) {
+  return Astro.redirect('/404');
+}
+---
+
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{category.title} — Văn Học PRT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Lora', Georgia, serif; }
+      .brand-title { font-family: 'Cinzel', serif; }
+    </style>
+  </head>
+
+  <body class="bg-[#FAF7F2] text-[#2c2724] min-h-screen selection:bg-[#E9DFCE] antialiased">
+    <div class="h-1 bg-[#8C6D58]/40 w-full"></div>
+
+    <div class="max-w-3xl mx-auto px-6 py-16">
+      <!-- Nút quay lại trang chủ -->
+      <nav class="mb-10">
+        <a href="/" class="text-xs font-sans uppercase tracking-widest text-[#8C6D58] hover:text-[#1a1715] transition-colors inline-flex items-center gap-1">
+          ← Về mục lục chính
+        </a>
+      </nav>
+
+      <!-- Tiêu đề & Thông tin Danh mục -->
+      <header class="text-center mb-16 pb-10 border-b border-[#E3DCCE]">
+        <span class="text-xs uppercase tracking-[0.25em] text-[#8C6D58] font-sans font-medium">
+          Chuyên mục thể loại
+        </span>
+        <h1 class="brand-title text-4xl sm:text-5xl font-bold tracking-wider text-[#1a1715] mt-3 mb-4">
+          {category.title}
+        </h1>
+        {category.description ? (
+          <p class="italic text-[#6B5E55] text-base max-w-md mx-auto leading-relaxed">
+            "{category.description}"
+          </p>
+        ) : (
+          <p class="italic text-[#8C6D58] text-sm">
+            Lưu trữ các tác phẩm thuộc thể loại {category.title}
+          </p>
+        )}
+        <div class="mt-4 text-xs font-sans text-[#8C6D58] uppercase tracking-wider">
+          Hiện có: <strong class="text-[#1a1715] font-semibold">{category.posts?.length || 0}</strong> tác phẩm
+        </div>
+      </header>
+
+      <!-- Danh sách bài viết theo chuẩn thẻ index.astro -->
+      <main class="space-y-6">
+        {!category.posts || category.posts.length === 0 ? (
+          <div class="text-center py-16 px-4 border border-dashed border-[#DCD3C1] rounded-2xl bg-white/40">
+            <p class="text-[#8C6D58] italic text-lg">Chưa có tác phẩm nào trong chuyên mục này.</p>
+          </div>
+        ) : (
+          category.posts.map((post: any) => (
+            <article class="bg-white/85 border border-[#E8E1D3] rounded-2xl p-5 sm:p-6 hover:border-[#8C6D58]/60 hover:shadow-md transition-all duration-300">
+              <div class="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
+                
+                <!-- Khung ảnh Thumbnail dạng đứng bo góc -->
+                <!-- Khung ảnh Thumbnail đồng bộ (Nếu không có ảnh sẽ hiện Bìa sách tượng trưng) -->
+                <a 
+                href={`/posts/${post.slug}`} 
+                class="w-full sm:w-36 h-48 sm:h-36 shrink-0 overflow-hidden rounded-xl border border-[#E8E1D3] bg-[#F5EFE6] block group relative select-none"
+                >
+                {post.mainImage ? (
+                    <img 
+                    src={post.mainImage} 
+                    alt={post.title} 
+                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                    loading="lazy"
+                    />
+                ) : (
+                    /* Khung bìa thay thế phong cách trang sách cổ */
+                    <div class="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-gradient-to-br from-[#FAF6EE] to-[#ECE3D4] border border-dashed border-[#DCD3C1]/80 rounded-xl group-hover:border-[#8C6D58]/50 transition-all duration-300">
+                    <!-- Icon Cuốn sách cổ điển -->
+                    <div class="w-10 h-10 rounded-full bg-[#8C6D58]/10 flex items-center justify-center text-[#8C6D58] mb-2 group-hover:scale-110 group-hover:bg-[#8C6D58]/15 transition-transform duration-300">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                        </svg>
+                    </div>
+                    <span class="text-[10px] font-sans uppercase tracking-[0.2em] text-[#8C6D58] font-medium">
+                        Tác Phẩm
+                    </span>
+                    </div>
+                )}
+                </a>
+
+                <!-- Cụm nội dung: Chuyên mục, Tiêu đề, Tác giả & Ngày -->
+                <div class="flex-1 flex flex-col justify-between self-stretch py-1">
+                  <div>
+                    <!-- 1. Categories -->
+                    {post.categories && post.categories.length > 0 && (
+                      <div class="flex flex-wrap gap-2 mb-2.5">
+                        {post.categories.map((cat: any) => (
+                          <a 
+                            href={`/categories/${cat.slug}`}
+                            class={`text-[11px] font-sans uppercase tracking-widest px-2.5 py-0.5 rounded-md border transition ${
+                              cat.slug === slug 
+                                ? 'bg-[#8C6D58] text-[#FAF7F2] border-[#8C6D58]' 
+                                : 'bg-[#F2EDE4] text-[#8C6D58] border-[#E3DCCE] hover:bg-[#8C6D58] hover:text-[#FAF7F2]'
+                            }`}
+                          >
+                            {cat.title}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+
+                    <!-- 2. Tiêu đề -->
+                    <h2 class="text-xl sm:text-2xl font-semibold text-[#1a1715] leading-snug">
+                      <a 
+                        href={`/posts/${post.slug}`} 
+                        class="hover:text-[#8C6D58] transition-colors"
+                      >
+                        {post.title}
+                      </a>
+                    </h2>
+                  </div>
+
+                  <!-- 3. Bút danh & Ngày đăng -->
+                  <div class="flex items-center gap-2 mt-4 text-xs font-sans text-[#8C6D58] uppercase tracking-wider">
+                    <span>Bút danh: <strong class="text-[#1a1715] font-semibold">{post.authorName || 'Khuyết danh'}</strong></span>
+                    <span>•</span>
+                    <time>{new Date(post._createdAt).toLocaleDateString('vi-VN')}</time>
+                  </div>
+                </div>
+
+              </div>
+            </article>
+          ))
+        )}
+      </main>
+
+      <footer class="mt-20 pt-8 border-t border-[#E3DCCE] text-center text-xs text-[#9E9085] font-sans">
+        <p>© 2026 Văn Học PRT • Lưu giữ những trang viết • Thuỳ Dương</p>
+      </footer>
+    </div>
+  </body>
+</html>

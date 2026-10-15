@@ -83,7 +83,20 @@ export default defineType({
       components: {
         input: CharCountInput, // Gắn component đếm ký tự vào khung soạn thảo
       },
-      validation: (Rule) => Rule.required().error('Nội dung tác phẩm không được để trống.'),
+      validation: (Rule) =>
+        Rule.custom((blocks: any) => {
+          if (!blocks || !Array.isArray(blocks)) return true
+
+          const raw = JSON.stringify(blocks)
+          // Kiểm tra xem có dấu vết của dấu rách OCR hoặc số thứ tự đầu câu không
+          const hasOcrTrash = /[a-zA-Z\u00C0-\u1EF9][´`]\s*[a-zA-Z]/u.test(raw)
+          const hasLineNumbers = /"text":"\s*\d+\.\s*/.test(raw)
+
+          if (hasOcrTrash || hasLineNumbers) {
+            return 'Tài liệu đang dính dấu rác OCR hoặc số câu thơ (5., 10.). Hãy nhấn nút "Chuẩn hóa văn bản" ở góc dưới để dọn dẹp.'
+          }
+          return true
+        }).warning(), // Hiển thị màu vàng nhắc nhở nhưng không chặn Publish
     }),
   ],
 

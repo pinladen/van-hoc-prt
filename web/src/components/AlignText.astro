@@ -13,11 +13,11 @@ const markType = node?._type || Astro.props.markType;
       <slot />
     </span>
   ) : markType === 'alignJustify' ? (
-    <span class="block text-justify my-2">
+    <span class="block text-justify my-1">
       <slot />
     </span>
   ) : (
-    <span class="block text-left !indent-0 my-2">
+    <span class="block text-left !indent-0 my-1">
       <slot />
     </span>
   )
